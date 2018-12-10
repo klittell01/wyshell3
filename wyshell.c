@@ -33,7 +33,7 @@ struct Node{
         struct Node *next, *prev;
         char *command;
         int count;
-        bool background;
+        bool background, hasPipe, app;
         struct Word *arg_list;
         int in, out, err;
         char *inFile, *outFile, *errFile;
@@ -131,17 +131,30 @@ void Executer(struct Node * node, int nodeCount){
             myArgv[i + 1] = strdup(tmp->command);
             tmp = tmp->next;
         }
+/*
+pipes need to point to the correct thing, not sure what exactly that is.
+        // open pipes here
+        int pipeFD[2];
+        if(myNode->hasPipe == true){
+            printf("pipe this shit around\n");
+            pipe(pipeFD);
 
-
-
+            dup2(pipeFD[0], 0);
+            //dup2(pipeFD[1], 1);
+            printf("start checking\n");
+        }
+*/
         int status;
         pid_t childWait;
         pid_t myExec;
         pid_t frtn = fork();
         if(frtn == 0){
+
             // child process
             // begin executing and forking
-            int fd0, fd1;
+            int fd0, fd1, fd2;
+
+            // redirect if there is non standard input
             if(myNode->inFile != NULL){
                 printf("check one\n");
                 if ((fd0 = open(myNode->inFile, O_RDONLY)) < 0){
@@ -152,12 +165,21 @@ void Executer(struct Node * node, int nodeCount){
                 close(fd0);
             }
 
+            // redirect if there is non standard output
             if(myNode->outFile != NULL){
-                printf("check two\n");
-                if ((fd1 = open(myNode->outFile, O_WRONLY | O_TRUNC |
-                    O_CREAT, 00600)) < 0){
-                    perror(myNode->outFile);
-                    break;
+                if(myNode->app == true){
+                    printf("check two\n");
+                    if ((fd1 = open(myNode->outFile, O_WRONLY | O_APPEND |
+                        O_CREAT, 00600)) < 0){
+                        perror(myNode->outFile);
+                        break;
+                    }
+                } else {
+                    if ((fd1 = open(myNode->outFile, O_WRONLY | O_TRUNC |
+                        O_CREAT, 00600)) < 0){
+                        perror(myNode->outFile);
+                        break;
+                    }
                 }
                 printf("check three\n");
                 dup2(fd1, 1);
@@ -166,14 +188,15 @@ void Executer(struct Node * node, int nodeCount){
 
             if(myNode->errFile != NULL){
                 printf("check four\n");
-                if ((fd1 = open(myNode->outFile, O_WRONLY | O_TRUNC |
+                if ((fd2 = open(myNode->errFile, O_WRONLY | O_TRUNC |
                     O_CREAT, 00600)) < 0){
-                    perror(myNode->outFile);
+                    printf("we get a bad error here\n");
+                    perror(myNode->errFile);
                     break;
                 }
                 printf("check five\n");
-                dup2(fd1, 1);
-                close(fd1);
+                dup2(fd2, 2);
+                close(fd2);
             }
 
 
@@ -198,12 +221,14 @@ void Executer(struct Node * node, int nodeCount){
         }
 
         // close file descriptors if it is time //
-        if(myNode->inFile != NULL){
-            dup2(stdin_copy, 0);
-        }
+        if(myNode->next == NULL){
+            if(myNode->inFile != NULL){
+                dup2(stdin_copy, 0);
+            }
 
-        if(myNode->outFile != NULL){
-            dup2(stdout_copy, 1);
+            if(myNode->outFile != NULL){
+                dup2(stdout_copy, 1);
+            }
         }
 
 
@@ -267,6 +292,9 @@ int main (int argc, char * argv[]){
 
                         //assign the input file
                         if(node->inFile == NULL ){
+                            // so what should the input file be for a piped input?
+                            // because i was thinking it would be the name of the
+                            // last command.
                             newNode->inFile = strdup(node->command);
                         } else {
                             printf("Error: Redirection error\n");
@@ -277,8 +305,10 @@ int main (int argc, char * argv[]){
                             // get and assign outFile of the node
                             rtn = parse_line(NULL);
                             if(rtn != EOL){
+                                node->hasPipe = true;
                                 node->outFile = strdup(lexeme);
                                 newNode->command = strdup(lexeme);
+                                newNode->hasPipe = true;
                             } else {
                                 printf("Error: Ambiguous redirection\n");
                                 myError = true;
@@ -397,6 +427,7 @@ int main (int argc, char * argv[]){
                             rtn = parse_line(NULL);
                             if(rtn != EOL){
                                 node->outFile = strdup(lexeme);
+                                node->app = true;
                             } else {
                                 printf("Error: Ambiguous redirection\n");
                                 myError = true;
