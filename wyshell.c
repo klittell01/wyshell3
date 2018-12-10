@@ -33,7 +33,7 @@ struct Node{
         struct Node *next, *prev;
         char *command;
         int count;
-        bool background, hasPipe, app;
+        bool background, hasPipe, app, appErr;
         struct Word *arg_list;
         int in, out, err;
         char *inFile, *outFile, *errFile;
@@ -183,20 +183,40 @@ pipes need to point to the correct thing, not sure what exactly that is.
                 }
                 printf("check three\n");
                 dup2(fd1, 1);
+                stdout_copy = fd1;
                 close(fd1);
             }
 
+            // redirect standard error
             if(myNode->errFile != NULL){
-                printf("check four\n");
-                if ((fd2 = open(myNode->errFile, O_WRONLY | O_TRUNC |
-                    O_CREAT, 00600)) < 0){
-                    printf("we get a bad error here\n");
-                    perror(myNode->errFile);
-                    break;
+                if(myNode->appErr == true){
+                    printf("check err append\n");
+                    if ((fd2 = open(myNode->errFile, O_WRONLY | O_APPEND |
+                        O_CREAT, 00600)) < 0){
+                        perror(myNode->errFile);
+                        break;
+                    }
+                } else {
+                    printf("check err out\n");
+                    if ((fd2 = open(myNode->errFile, O_WRONLY | O_TRUNC |
+                        O_CREAT, 00600)) < 0){
+                        perror(myNode->errFile);
+                        break;
+                    }
                 }
-                printf("check five\n");
+                printf("check fifty\n");
                 dup2(fd2, 2);
                 close(fd2);
+
+
+/*
+                if(strcmp(myNode->errFile, "stdout -1") == 0){
+                    printf("change the error output\n");
+                }
+                printf("check five\n");
+                dup2(stdout_copy, 2);
+                close(stdout_copy);
+*/
             }
 
 
@@ -397,15 +417,24 @@ int main (int argc, char * argv[]){
                             printf("Error: Ambiguous redirection\n");
                             break;
                         }
+                        printf("this should return true\n");
                         if(node->errFile == NULL){
                             // get and assign errFile of the node
-                            rtn = parse_line(NULL);
+                            /*rtn = parse_line(NULL);
                             if(rtn != EOL){
                                 node->errFile = strdup(lexeme);
                             } else {
                                 printf("Error: Ambiguous redirection\n");
                                 myError = true;
                                 break;
+                            }
+                            */
+                            if(node->outFile != NULL){
+                                node->errFile = strdup(node->outFile);
+                                printf("why is it not null\n");
+                            } else {
+                                printf("why wont this work\n");
+                                node->errFile = strdup("stdout -1");
                             }
                         } else {
                             //if there is more than one attempt to redirect err
@@ -452,6 +481,7 @@ int main (int argc, char * argv[]){
                             // get and assign errFile of the node
                             rtn = parse_line(NULL);
                             if(rtn != EOL){
+                                node->appErr = true;
                                 node->errFile = strdup(lexeme);
                             } else {
                                 printf("Error: Ambiguous redirection\n");
@@ -477,6 +507,7 @@ int main (int argc, char * argv[]){
                             // get and assign errFile of the node
                             rtn = parse_line(NULL);
                             if(rtn != EOL){
+                                node->appErr = false;
                                 node->errFile = strdup(lexeme);
                             } else {
                                 printf("Error: Ambiguous redirection\n");

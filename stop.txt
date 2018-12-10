@@ -1,0 +1,2 @@
+stderr seems to not really redirect from anything. even the normal
+shell wont redirect it to a file.

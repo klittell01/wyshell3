@@ -1,6 +1,8 @@
 //gcc errcheck.c -o err
+#include <sys/types.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 void main(int argc, char **argv) {
 //    int i;
 //    for (i = 1; i < argc; i++) {
